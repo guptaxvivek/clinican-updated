@@ -57,19 +57,11 @@ def load_data():
     rotas_query = "SELECT * FROM rotas"
     rotas_df = pd.read_sql_query(rotas_query, conn)
 
+    user_df = pd.read_sql_query("SELECT * FROM users", conn)
+
+    merged_df = pd.merge(rotas_df, user_df, on="personid")
+
     conn.close()
-    return rotas_df
-
-
-def preprocess_data(cases_df, consultations_df, rotas_df):
-    cases_df = cases_df[cases_df['caseno'] != "none"]
-    cases_df['caseno'] = cases_df['caseno'].astype(int)
-
-    merge_df = pd.merge(cases_df, consultations_df, left_on=["caseno"],
-                        right_on=["Caseno"]).drop_duplicates()
-
-    merged_df = pd.merge(merge_df, rotas_df, on="rslid", how="left").drop_duplicates()
-
     return merged_df
 
 def ensure_duration_format(duration_str):
@@ -127,6 +119,7 @@ def main():
 
         rotas_df = load_data()
 
+
         role_headers = rotas_df['role'].unique().tolist()
         role_headers.insert(0, '(All)')
         selected_role = st.sidebar.selectbox('Select Role', role_headers)
@@ -135,6 +128,10 @@ def main():
         months = rotas_df['month'].unique().tolist()
         months.insert(0, '(All)')
         selected_month = st.sidebar.selectbox('Select Month', months)
+
+        adastras = rotas_df['adastra'].unique().tolist()
+        adastras.insert(0, '(All)')
+        selected_adastra = st.sidebar.selectbox('Select User', adastras)
         
         role_df = rotas_df
 
@@ -143,6 +140,9 @@ def main():
 
         if selected_role != "(All)":
             role_df = role_df[role_df['role'] == selected_role]
+
+        if selected_adastra != "(All)":
+            role_df = role_df[role_df['adastra'] == selected_adastra]
 
         plot_daily_hours_cost(role_df)
 
