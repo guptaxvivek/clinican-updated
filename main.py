@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 import psycopg2
+from sqlalchemy import create_engine
 from urllib.parse import urlparse
 from dotenv import load_dotenv
 
@@ -45,10 +46,15 @@ def check_password():
     return False
 
 
+# def connect_to_db():
+#     db_url = os.getenv("DATABASE_URL")
+#     conn = psycopg2.connect(db_url)
+#     return conn
+
 def connect_to_db():
     db_url = os.getenv("DATABASE_URL")
-    conn = psycopg2.connect(db_url)
-    return conn
+    engine = create_engine(db_url)
+    return engine
 
 
 def load_data():
@@ -57,11 +63,16 @@ def load_data():
     rotas_query = "SELECT * FROM rotas"
     rotas_df = pd.read_sql_query(rotas_query, conn)
 
-    user_df = pd.read_sql_query("SELECT * FROM users", conn)
+    consultants_query = """
+    SELECT DISTINCT users.*
+    FROM users
+    INNER JOIN consultations 
+    ON users.adastra = consultations."Cons_Clinicians_Name"
+    """
+    user_df = pd.read_sql_query(consultants_query, conn)
 
     merged_df = pd.merge(rotas_df, user_df, on="personid")
 
-    conn.close()
     return merged_df
 
 def ensure_duration_format(duration_str):
@@ -119,7 +130,6 @@ def main():
 
         rotas_df = load_data()
 
-
         role_headers = rotas_df['role'].unique().tolist()
         role_headers.insert(0, '(All)')
         selected_role = st.sidebar.selectbox('Select Role', role_headers)
@@ -131,6 +141,7 @@ def main():
 
         adastras = rotas_df['adastra'].unique().tolist()
         adastras.insert(0, '(All)')
+        adastras.sort()
         selected_adastra = st.sidebar.selectbox('Select User', adastras)
         
         role_df = rotas_df
