@@ -75,6 +75,27 @@ def load_data():
 
     return merged_df
 
+def load_call_data():
+    conn = connect_to_db()
+
+    query = """
+            SELECT 
+                DATE_TRUNC('hour', start_time) AS call_hour,
+                COUNT(*) AS calls_per_hour,
+                COUNT(DISTINCT agent_number) AS handlers_per_hour
+            FROM 
+                public.phone_calls
+            WHERE 
+                start_time >= '2024-10-01' AND start_time < '2024-11-01'
+            GROUP BY 
+                call_hour
+            ORDER BY 
+                call_hour;
+            """
+    phone_df = pd.read_sql_query(query, conn)
+
+    return phone_df
+
 def ensure_duration_format(duration_str):
     parts = duration_str.split(":")
     if len(parts) == 2:
@@ -119,6 +140,19 @@ def plot_avg_case_type(df):
     st.title('Clinician Cases Dashboard')
     st.plotly_chart(fig)
 
+def plot_caller_handler(data):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=data['call_hour'], y=data['calls_per_hour'], mode='lines', name='Calls per Hour'))
+    fig.add_trace(go.Scatter(x=data['call_hour'], y=data['handlers_per_hour'], mode='lines', name='Handlers per Hour'))
+
+    # Customize layout
+    fig.update_layout(
+        title="Phone Calls and Call Handlers per Hour for October 2024",
+        xaxis_title="Hour",
+        yaxis_title="Count",
+        template="plotly_dark"
+    )
+    st.plotly_chart(fig)
 
 def main():
     if not check_password():
@@ -156,6 +190,10 @@ def main():
             role_df = role_df[role_df['adastra'] == selected_adastra]
 
         plot_daily_hours_cost(role_df)
+
+        phone_data = load_call_data()
+
+        plot_caller_handler(phone_data) 
 
 
     except Exception as e:
