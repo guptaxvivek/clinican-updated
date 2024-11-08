@@ -6,6 +6,7 @@ import streamlit as st
 import psycopg2
 from sqlalchemy import create_engine
 from urllib.parse import urlparse
+from datetime import datetime
 from dotenv import load_dotenv
 import streamlit_authenticator as stauth
 
@@ -110,9 +111,13 @@ def load_case_data(caseno: int):
     return case_df
 
 @st.cache_data(ttl=3600)
-def load_all_clinicans_data():
+def load_all_clinicans_data(selected_month_year:str):
     conn = connect_to_db()
-    all_clinicians_query = """WITH shift_hours AS (
+    if selected_month_year != '(All)':
+        formatted_date = datetime.strptime(selected_month_year, "%B %Y").strftime("%Y-%m-01")
+    else:
+        formatted_date = '2024-10-01'
+    all_clinicians_query = f"""WITH shift_hours AS (
                         -- Calculate hours and costs per clinician without consultation joins
                         SELECT
                             u.fullname AS clinician_name,
@@ -122,7 +127,7 @@ def load_all_clinicans_data():
                             ROUND(SUM(CAST(r.value AS numeric))::numeric, 2) as total_cost
                         FROM rotas r
                         LEFT JOIN users u ON r.personid = u.personid
-                        WHERE DATE_TRUNC('month', r.truelogin) = '2024-10-01'::date
+                        WHERE DATE_TRUNC('month', r.truelogin) = '{formatted_date}'::date
                         AND r.truelogin IS NOT NULL
                         AND r.truelogout IS NOT NULL
                         GROUP BY u.fullname, r.personid
@@ -163,7 +168,7 @@ def load_all_clinicans_data():
                         FROM rotas r
                         LEFT JOIN consultations c ON r.rslid = c.rslid
                         LEFT JOIN users u ON r.personid = u.personid
-                        WHERE DATE_TRUNC('month', r.truelogin) = '2024-10-01'::date
+                        WHERE DATE_TRUNC('month', r.truelogin) = '{formatted_date}'::date
                         AND r.truelogin IS NOT NULL
                         AND r.truelogout IS NOT NULL
                         AND c."Cons_Type" IN ('GP Advice', 'Treatment Centre', 'Visit')
@@ -219,9 +224,12 @@ def load_shift_data(rslid: int):
     return shift_df
 
 @st.cache_data(ttl=3600)
-def load_clinician_data(personid: int):
+def load_clinician_data(personid: int, selected_month_year:str):
     conn = connect_to_db()
-
+    if selected_month_year != '(All)':
+        formatted_date = datetime.strptime(selected_month_year, "%B %Y").strftime("%Y-%m-01")
+    else:
+        formatted_date = '2024-10-01'
     clinician_query = f"""WITH shift_consultation_stats AS (
                         -- Calculate consultation statistics per shift
                         SELECT
@@ -254,7 +262,7 @@ def load_clinician_data(personid: int):
                             )::numeric, 2) as shift_avg_visit_duration
                         FROM rotas r
                         LEFT JOIN consultations c ON r.rslid = c.rslid
-                        WHERE DATE_TRUNC('month', r.truelogin) = '2024-10-01'::date
+                        WHERE DATE_TRUNC('month', r.truelogin) = '{formatted_date}'::date
                         AND r.truelogin IS NOT NULL
                         AND r.truelogout IS NOT NULL
                         AND c."Cons_Type" IN ('GP Advice', 'Treatment Centre', 'Visit')
@@ -289,7 +297,7 @@ def load_clinician_data(personid: int):
                         FROM rotas r
                         LEFT JOIN users u ON r.personid = u.personid
                         LEFT JOIN shift_consultation_stats cs ON r.rslid = cs.rslid
-                        WHERE DATE_TRUNC('month', r.truelogin) = '2024-10-01'::date
+                        WHERE DATE_TRUNC('month', r.truelogin) = '{formatted_date}'::date
                         AND r.truelogin IS NOT NULL
                         AND r.truelogout IS NOT NULL
                         AND r.personid = {personid}
@@ -352,11 +360,12 @@ def ensure_duration_format(duration_str):
     return duration_str
 
 def plot_daily_hours_cost(data):
-    data['duration'] = data['duration'].astype(str).apply(ensure_duration_format)
-    data['date'] = pd.to_datetime(data['date'], errors='coerce')
-    data['duration_hours'] = pd.to_timedelta(data['duration'], errors='coerce').dt.total_seconds() / 3600
+    # data['duration'] = data['duration'].astype(str).apply(ensure_duration_format)
+    data.loc[:, 'duration'] = data['duration'].astype(str).apply(ensure_duration_format)
+    data.loc[:, 'date'] = pd.to_datetime(data['date'], errors='coerce')
+    data.loc[:, 'duration_hours'] = pd.to_timedelta(data['duration'], errors='coerce').dt.total_seconds() / 3600
 
-    data['value'] = data['value'].astype(float)
+    data.loc[:,'value'] = data['value'].astype(float)
     grouped_data = data.groupby(['date', 'role'], as_index=False).agg(
         total_hours=('duration_hours', 'sum'),
         total_cost=('value', 'sum')
@@ -396,7 +405,6 @@ def main():
 
         try:
             rotas_df = load_data()
-            df = load_all_clinicans_data()
 
             role_headers = rotas_df['role'].unique().tolist()
             role_headers.insert(0, '(All)')
@@ -417,7 +425,6 @@ def main():
             # Sidebar options for selecting month-year
             selected_month_year = st.sidebar.selectbox('Select Month-Year', month_years)
 
-
             # rotas_df['month'] = rotas_df['date'].dt.month_name()
             # months = rotas_df['month'].unique().tolist()
             # months.insert(0, '(All)')
@@ -429,6 +436,7 @@ def main():
             selected_adastra = st.sidebar.selectbox('Select User', adastras)
 
             role_df = rotas_df
+            df = load_all_clinicans_data(selected_month_year)
 
             # if selected_month != "(All)":
             #     role_df = role_df[role_df['month'] == selected_month]
@@ -465,7 +473,7 @@ def main():
                 
                 else:
                     p_id = df.iloc[selected_rows]['personid'].values[0]
-                    indv_clinician_df = load_clinician_data(df.iloc[selected_rows]['personid'].values[0])
+                    indv_clinician_df = load_clinician_data(df.iloc[selected_rows]['personid'].values[0], selected_month_year)
                     
                     st.header(f"Performance - {str(indv_clinician_df['clinician_name'][0])}")
 
