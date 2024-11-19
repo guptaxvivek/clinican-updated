@@ -34,7 +34,7 @@ if selected_month_year != "(All)":
 
 df = load_all_clinicans_data(selected_month_year)
 df.insert(0, 'Select', [False for _ in range(df.shape[0])])
-edited_df = st.data_editor(df.drop("personid", axis=1), num_rows= "fixed", disabled=df.columns.drop('Select'), hide_index=True)
+edited_df = st.data_editor(df.drop("personid", axis=1).style.format(thousands=''), num_rows= "fixed", disabled=df.columns.drop('Select'), hide_index=True)
 # Filter to find selected rows based on the 'Select' column
 selected_rows = edited_df[edited_df['Select']].index.tolist()
 
@@ -52,7 +52,7 @@ else:
 
     col1.metric("Total Consultations", indv_clinician_df['total_consultations'].sum())
     col2.metric("Total Hours", indv_clinician_df['shift_hours'].sum())
-    col3.metric("Total Cost", indv_clinician_df['shift_cost'].sum())
+    col3.metric("Total Cost", f"{indv_clinician_df['shift_cost'].sum():.2f}")
 
     colum1, colum2 = st.columns(2)
     with colum1:
@@ -73,7 +73,7 @@ else:
 
     indv_clinician_df.insert(0, 'Select', [False for _ in range(indv_clinician_df.shape[0])])
 
-    indv_edit_df = st.data_editor(indv_clinician_df.drop(columns=["clinician_name", "personid", "rslid", "shift_start", "shift_end"]), num_rows= "fixed", disabled=df.columns.drop('Select'), hide_index=True)
+    indv_edit_df = st.data_editor(indv_clinician_df.drop(columns=["clinician_name", "personid", "rslid", "shift_date"]).style.format(thousands=''), num_rows= "fixed", disabled=df.columns.drop('Select'), hide_index=True)
     selected_shift= indv_edit_df[indv_edit_df['Select']].index.tolist()
 
     if len(selected_shift) != 1:
@@ -106,7 +106,12 @@ else:
 
         indv_shift_df.insert(0, 'Select', [False for _ in range(indv_shift_df.shape[0])])
 
-        indv_caseedit_df = st.data_editor(indv_shift_df.drop(columns=["personid", "rslid"]), num_rows= "fixed", disabled=df.columns.drop('Select'), hide_index=True)
+        # indv_shift_df.style.format(precision=0, thousands='')
+        indv_caseedit_df = st.data_editor(indv_shift_df.drop(columns=["personid", "rslid"]), num_rows= "fixed", disabled=df.columns.drop('Select'), hide_index=True, 
+                                          column_config={
+                                            # NOTICE THE STEP PARAMETER BEING USED HERE
+                                            "case_number": st.column_config.NumberColumn(format="%d")})
+
         selected_case= indv_caseedit_df[indv_caseedit_df['Select']].index.tolist()
 
         if len(selected_case) != 1:
@@ -136,13 +141,11 @@ else:
             st.write("**Priority on Completion:**", indv_case_df["priority_on_completion"][0])
 
             # Consultation Information
-
-            st.write(indv_case_df)
             for i in range(indv_case_df.shape[0]):
                 st.subheader(f"Consultation Details {i+1}")
                 st.write("**Start Time:**", indv_case_df["Cons_Begin_Time"][i])
                 st.write("**End Time:**", indv_case_df["Cons_End_Time"][i])
-                st.write("**Consultation Type:**", indv_shift_df.iloc[selected_case]['consultation_type'].values[0])
+                st.write("**Consultation Type:**", indv_case_df['received_case_type'][i])
                 st.write("**Consultant Name:**", indv_case_df['Cons_Clinicians_Name'][i])
 
                 st.write("**Diagnosis:**", indv_case_df["Cons_Diagnosis"][i])

@@ -30,6 +30,7 @@ def plot_daily_hours_cost(data, start_date, end_date):
     fig_cost = px.line(grouped_data, x='date', y='total_cost', color='role',
                        title='Total Cost per Day by Role', color_discrete_sequence=px.colors.sequential.Blues)
 
+    # Display in Streamlit
     st.subheader("Daily Hours and Cost by Role")
     st.plotly_chart(fig_hours)
     st.plotly_chart(fig_cost)
