@@ -12,33 +12,27 @@ from navigation import make_sidebar
 make_sidebar()
 
 def plot_daily_hours_cost(data, start_date, end_date): 
-    # Ensure data types
     data.loc[:, 'duration'] = data['duration'].astype(str).apply(ensure_duration_format)
     data.loc[:, 'date'] = pd.to_datetime(data['date'], errors='coerce')
     data.loc[:, 'duration_hours'] = pd.to_timedelta(data['duration'], errors='coerce').dt.total_seconds() / 3600
     data.loc[:, 'value'] = data['value'].astype(float)
 
-    # Filter data based on selected date range
     filtered_data = data.query("@start_date <= date <= @end_date")
 
-    # Group data
     grouped_data = filtered_data.groupby(['date', 'role'], as_index=False).agg(
         total_hours=('duration_hours', 'sum'),
         total_cost=('value', 'sum')
     )
 
-    # Create Plotly figures
     fig_hours = px.line(grouped_data, x='date', y='total_hours', color='role',
                         title='Total Hours per Day by Role', color_discrete_sequence=px.colors.sequential.Blues)
 
     fig_cost = px.line(grouped_data, x='date', y='total_cost', color='role',
                        title='Total Cost per Day by Role', color_discrete_sequence=px.colors.sequential.Blues)
 
-    # Display in Streamlit
     st.subheader("Daily Hours and Cost by Role")
     st.plotly_chart(fig_hours)
     st.plotly_chart(fig_cost)
-
 
 
 st.title('Clinician Performance Dashboard')
